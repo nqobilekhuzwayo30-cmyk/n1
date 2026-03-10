@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Remote Mic/Cam</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>video {width:100%; max-width:400px;}</style>
+</head>
+<body>
+    <video id="localVideo" autoplay muted></video>
+    <video id="remoteVideo" autoplay></video>
+    <button id="start">Start Share</button>
+    <button id="connect">Connect Room (add code)</button>
+    <input id="roomId" placeholder="Room ID">
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script>
+        const socket = io('https://your-signaling-server.com'); // Replace later
+        let localStream, peerConnection;
+        const localVideo = document.getElementById('localVideo');
+        const remoteVideo = document.getElementById('remoteVideo');
+        const config = { iceServers: [{urls: 'stun:stun.l.google.com:19302'}] };
+
+        document.getElementById('start').onclick = async () => {
+            localStream = await navigator.mediaDevices.getUserMedia({video: true, audio: true});
+            localVideo.srcObject = localStream;
+            peerConnection = new RTCPeerConnection(config);
+            localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+            peerConnection.ontrack = e => remoteVideo.srcObject = e.streams[0];
+            peerConnection.onicecandidate = e => socket.emit('ice', e.candidate);
+        };
+
+        document.getElementById('connect').onclick = () => {
+            const room = document.getElementById('roomId').value;
+            socket.emit('join', room);
+        };
+
+        socket.on('offer', async offer => {
+            peerConnection = new RTCPeerConnection(config);
+            // Similar setup...
+            await peerConnection.setRemoteDescription(offer);
+            const answer = await peerConnection.createAnswer();
+            await peerConnection.setLocalDescription(answer);
+            socket.emit('answer', answer);
+        });
+        // Add full signaling handlers (offer/answer/ice) from tutorials [web:43]
+    </script>
+</body>
+</html>
